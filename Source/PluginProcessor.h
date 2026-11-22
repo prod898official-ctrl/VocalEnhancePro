@@ -30,18 +30,27 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-    juce::AudioProcessorValueTreeState apvts;
+    juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
+
+    // For waveform display
+    juce::AudioBuffer<float> waveBuffer;
+    std::atomic<float> inPeak {0.0f};
+    std::atomic<float> outPeak {0.0f};
 
 private:
-    juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    juce::AudioProcessorValueTreeState apvts;
+    juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
 
-    juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> highPass;
-    juce::dsp::Compressor<float> compressor;
+    juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> hpf;
+    juce::dsp::Compressor<float> comp;
     juce::dsp::Gain<float> makeup;
-    juce::dsp::WaveShaper<float> saturator;
-    juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> airFilter;
+    juce::dsp::WaveShaper<float> sat;
+    juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> air;
 
-    double sampleRate = 44100.0;
+    float deessEnv = 0.0f;
+    double sr = 44100.0;
+
+    void updateCoeffs();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VocalEnhanceProAudioProcessor)
 };

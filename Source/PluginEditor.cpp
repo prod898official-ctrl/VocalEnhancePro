@@ -1,80 +1,91 @@
 #include "PluginEditor.h"
 
-VocalEnhanceProAudioProcessorEditor::VocalEnhanceProAudioProcessorEditor (VocalEnhanceProAudioProcessor& p)
-    : AudioProcessorEditor (&p), processor (p)
+VocalEnhanceProAudioProcessorEditor::VocalEnhanceProAudioProcessorEditor(VocalEnhanceProAudioProcessor& p)
+    : AudioProcessorEditor(&p), processor(p), wave(p)
 {
-    setSize (680, 320);
+    setSize(720, 420);
 
-    titleLabel.setText ("VOCAL ENHANCE PRO", juce::dontSendNotification);
-    titleLabel.setFont (juce::FontOptions (20.0f, juce::Font::bold));
-    titleLabel.setJustificationType (juce::Justification::centred);
-    titleLabel.setColour (juce::Label::textColourId, juce::Colour (0xffe9d5ff));
-    addAndMakeVisible (titleLabel);
+    title.setText("VOCAL ENHANCE PRO", juce::dontSendNotification);
+    title.setFont(juce::FontOptions(22.0f, juce::Font::bold));
+    title.setJustificationType(juce::Justification::centred);
+    title.setColour(juce::Label::textColourId, juce::Colour(0xffe9d5ff));
+    addAndMakeVisible(title);
 
-    addKnob (hpfSlider,    hpfLabel,    "HIGH-PASS");
-    addKnob (deessSlider,  deessLabel,  "DE-ESSER");
-    addKnob (compSlider,   compLabel,   "COMPRESS");
-    addKnob (warmthSlider, warmthLabel, "WARMTH");
-    addKnob (airSlider,    airLabel,    "AIR");
-    addKnob (outSlider,    outLabel,    "OUTPUT");
+    setup(hpf, hpfL, "HIGH-PASS");
+    setup(deess, deessL, "DE-ESSER");
+    setup(comp, compL, "COMPRESS");
+    setup(warm, warmL, "WARMTH");
+    setup(air, airL, "AIR");
+    setup(out, outL, "OUTPUT");
 
-    hpfAtt    = std::make_unique<SliderAttachment> (processor.apvts, "hpf",    hpfSlider);
-    deessAtt  = std::make_unique<SliderAttachment> (processor.apvts, "deess",  deessSlider);
-    compAtt   = std::make_unique<SliderAttachment> (processor.apvts, "comp",   compSlider);
-    warmthAtt = std::make_unique<SliderAttachment> (processor.apvts, "warmth", warmthSlider);
-    airAtt    = std::make_unique<SliderAttachment> (processor.apvts, "air",    airSlider);
-    outAtt    = std::make_unique<SliderAttachment> (processor.apvts, "out",    outSlider);
+    hpfA   = std::make_unique<Att>(processor.getAPVTS(), "hpf", hpf);
+    deessA = std::make_unique<Att>(processor.getAPVTS(), "deess", deess);
+    compA  = std::make_unique<Att>(processor.getAPVTS(), "comp", comp);
+    warmA  = std::make_unique<Att>(processor.getAPVTS(), "warm", warm);
+    airA   = std::make_unique<Att>(processor.getAPVTS(), "air", air);
+    outA   = std::make_unique<Att>(processor.getAPVTS(), "out", out);
+
+    bypass.setButtonText("BYPASS");
+    bypass.setColour(juce::ToggleButton::textColourId, juce::Colour(0xffc4b5fd));
+    addAndMakeVisible(bypass);
+    bypassA = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.getAPVTS(), "bypass", bypass);
+
+    addAndMakeVisible(wave);
 }
 
 VocalEnhanceProAudioProcessorEditor::~VocalEnhanceProAudioProcessorEditor() {}
 
-void VocalEnhanceProAudioProcessorEditor::addKnob (juce::Slider& slider, juce::Label& label, const juce::String& name)
+void VocalEnhanceProAudioProcessorEditor::setup(juce::Slider& s, juce::Label& l, const juce::String& name)
 {
-    slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 70, 18);
-    slider.setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (0xff7c3aed));
-    slider.setColour (juce::Slider::thumbColourId, juce::Colour (0xffc084fc));
-    addAndMakeVisible (slider);
+    s.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 68, 16);
+    s.setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xff7c3aed));
+    s.setColour(juce::Slider::thumbColourId, juce::Colour(0xffc084fc));
+    addAndMakeVisible(s);
 
-    label.setText (name, juce::dontSendNotification);
-    label.setJustificationType (juce::Justification::centred);
-    label.setColour (juce::Label::textColourId, juce::Colour (0xffc4b5fd));
-    addAndMakeVisible (label);
+    l.setText(name, juce::dontSendNotification);
+    l.setJustificationType(juce::Justification::centred);
+    l.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    l.setColour(juce::Label::textColourId, juce::Colour(0xffc4b5fd));
+    addAndMakeVisible(l);
 }
 
-void VocalEnhanceProAudioProcessorEditor::paint (juce::Graphics& g)
+void VocalEnhanceProAudioProcessorEditor::paint(juce::Graphics& g)
 {
-    g.fillAll (juce::Colour (0xff0c0a14));
-
-    juce::ColourGradient grad (juce::Colour (0xff0c0a14), 0, 0,
-                               juce::Colour (0xff1a1030), 0, (float)getHeight(), false);
-    g.setGradientFill (grad);
+    g.fillAll(juce::Colour(0xff0a0614));
+    juce::ColourGradient gr(juce::Colour(0xff0a0614), 0, 0, juce::Colour(0xff1a1035), 0, (float)getHeight(), false);
+    g.setGradientFill(gr);
     g.fillAll();
+    g.setColour(juce::Colour(0xff7c3aed).withAlpha(0.4f));
+    g.fillRect(0, 0, getWidth(), 3);
 }
 
 void VocalEnhanceProAudioProcessorEditor::resized()
 {
-    auto area = getLocalBounds().reduced (20);
+    auto a = getLocalBounds().reduced(18);
+    title.setBounds(a.removeFromTop(30));
+    a.removeFromTop(8);
+    wave.setBounds(a.removeFromTop(105));
+    a.removeFromTop(16);
 
-    titleLabel.setBounds (area.removeFromTop (30));
-    area.removeFromTop (15);
-
-    const int knobWidth = 95;
-    const int knobHeight = 130;
-    int spacing = (area.getWidth() - 6 * knobWidth) / 5;
+    const int kw = 100;
+    const int kh = 120;
+    int gap = (a.getWidth() - 6 * kw) / 5;
 
     auto place = [&](juce::Slider& s, juce::Label& l)
     {
-        auto r = area.removeFromLeft (knobWidth);
-        l.setBounds (r.removeFromTop (18));
-        s.setBounds (r.removeFromTop (knobHeight));
-        area.removeFromLeft (spacing);
+        auto r = a.removeFromLeft(kw);
+        l.setBounds(r.removeFromTop(18));
+        s.setBounds(r.removeFromTop(kh));
+        a.removeFromLeft(gap);
     };
 
-    place (hpfSlider, hpfLabel);
-    place (deessSlider, deessLabel);
-    place (compSlider, compLabel);
-    place (warmthSlider, warmthLabel);
-    place (airSlider, airLabel);
-    place (outSlider, outLabel);
+    place(hpf, hpfL);
+    place(deess, deessL);
+    place(comp, compL);
+    place(warm, warmL);
+    place(air, airL);
+    place(out, outL);
+
+    bypass.setBounds(getWidth()/2 - 48, getHeight() - 40, 96, 26);
 }
