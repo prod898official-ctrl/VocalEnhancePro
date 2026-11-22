@@ -19,9 +19,25 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Upload VST3
+      - name: Find and package VST3
+        shell: pwsh
+        run: |
+          $vst3 = Get-ChildItem -Path build -Recurse -Filter "VocalEnhancePro.vst3" -Directory | Select-Object -First 1
+          if ($vst3) {
+            Write-Host "Found VST3 at: $($vst3.FullName)"
+            New-Item -ItemType Directory -Force -Path "artifact"
+            Copy-Item -Path $vst3.FullName -Destination "artifact\VocalEnhancePro.vst3" -Recurse
+            Compress-Archive -Path "artifact\VocalEnhancePro.vst3" -DestinationPath "VocalEnhancePro-Windows-VST3.zip" -Force
+            Write-Host "Created ZIP successfully"
+          } else {
+            Write-Host "VST3 not found! Listing build folder:"
+            Get-ChildItem -Path build -Recurse | Select-Object FullName
+            exit 1
+          }
+
+      - name: Upload VST3 ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: VocalEnhancePro-Windows
-          path: build/**/VST3/**
-          if-no-files-found: warn
+          name: VocalEnhancePro-Windows-VST3
+          path: VocalEnhancePro-Windows-VST3.zip
+          if-no-files-found: error
