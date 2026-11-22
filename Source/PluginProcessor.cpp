@@ -3,62 +3,58 @@
 
 VocalEnhanceProAudioProcessor::VocalEnhanceProAudioProcessor()
     : AudioProcessor (BusesProperties()
-                      .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-                      .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
-      apvts (*this, nullptr, "PARAMETERS", createParameterLayout())
+        .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
+        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+      apvts (*this, nullptr, "Params", createParameterLayout())
 {
-    waveformBuffer.setSize (1, 1024);
-    waveformBuffer.clear();
 }
 
-VocalEnhanceProAudioProcessor::~VocalEnhanceProAudioProcessor() = default;
+VocalEnhanceProAudioProcessor::~VocalEnhanceProAudioProcessor() {}
 
 juce::AudioProcessorValueTreeState::ParameterLayout VocalEnhanceProAudioProcessor::createParameterLayout()
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "hpf", 1 }, "High-Pass", juce::NormalisableRange<float> (20.0f, 300.0f, 1.0f, 0.4f), 80.0f));
+        juce::ParameterID{"hpf", 1}, "High Pass", juce::NormalisableRange<float>{20.f, 300.f, 1.f, 0.4f}, 80.f));
 
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "deesser", 1 }, "De-Esser", juce::NormalisableRange<float> (0.0f, 1.0f), 0.35f));
+        juce::ParameterID{"deess", 1}, "De-Esser", juce::NormalisableRange<float>{0.f, 1.f}, 0.3f));
 
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "comp", 1 }, "Compressor", juce::NormalisableRange<float> (0.0f, 1.0f), 0.45f));
+        juce::ParameterID{"comp", 1}, "Compress", juce::NormalisableRange<float>{0.f, 1.f}, 0.4f));
 
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "warmth", 1 }, "Warmth", juce::NormalisableRange<float> (0.0f, 1.0f), 0.25f));
+        juce::ParameterID{"warmth", 1}, "Warmth", juce::NormalisableRange<float>{0.f, 1.f}, 0.2f));
 
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "air", 1 }, "Air", juce::NormalisableRange<float> (0.0f, 12.0f, 0.1f), 3.5f));
+        juce::ParameterID{"air", 1}, "Air", juce::NormalisableRange<float>{0.f, 12.f, 0.1f}, 3.0f));
 
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "output", 1 }, "Output", juce::NormalisableRange<float> (-24.0f, 12.0f, 0.1f), 0.0f));
-
-    params.push_back (std::make_unique<juce::AudioParameterBool> (
-        juce::ParameterID { "bypass", 1 }, "Bypass", false));
+        juce::ParameterID{"out", 1}, "Output", juce::NormalisableRange<float>{-24.f, 12.f, 0.1f}, 0.f));
 
     return { params.begin(), params.end() };
 }
 
-void VocalEnhanceProAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+void VocalEnhanceProAudioProcessor::prepareToPlay (double sr, int samplesPerBlock)
 {
-    currentSampleRate = sampleRate;
+    sampleRate = sr;
 
     juce::dsp::ProcessSpec spec;
-    spec.sampleRate = sampleRate;
+    spec.sampleRate = sr;
     spec.maximumBlockSize = (juce::uint32) samplesPerBlock;
     spec.numChannels = (juce::uint32) getTotalNumOutputChannels();
 
     highPass.prepare (spec);
     compressor.prepare (spec);
-    makeupGain.prepare (spec);
+    makeup.prepare (spec);
     saturator.prepare (spec);
-    airShelf.prepare (spec);
+    airFilter.prepare (spec);
 
-    saturator.functionToUse = [] (float x) { return std::tanh (x * 1.3f); };
+    saturator.functionToUse = [](float x){ return std::tanh(x * 1.4f); };
 
-    updateFilters();
+    *highPass.state.coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighPass (sr, 80.0);
+    *airFilter.state.coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighShelf (sr, 10000.0, 0.7f, 1.5f);
 }
 
 void VocalEnhanceProAudioProcessor::releaseResources() {}
@@ -72,108 +68,79 @@ bool VocalEnhanceProAudioProcessor::isBusesLayoutSupported (const BusesLayout& l
     return layouts.getMainInputChannelSet() == layouts.getMainOutputChannelSet();
 }
 
-void VocalEnhanceProAudioProcessor::updateFilters()
-{
-    auto hpfFreq = apvts.getRawParameterValue ("hpf")->load();
-    *highPass.state.coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighPass (currentSampleRate, hpfFreq);
-
-    auto airGain = apvts.getRawParameterValue ("air")->load();
-    *airShelf.state.coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighShelf (
-        currentSampleRate, 10500.0f, 0.707f, juce::Decibels::decibelsToGain (airGain));
-}
-
 void VocalEnhanceProAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
-    const auto numSamples = buffer.getNumSamples();
-    const auto numChannels = buffer.getNumChannels();
+    auto totalNumInputChannels  = getTotalNumInputChannels();
+    auto totalNumOutputChannels = getTotalNumOutputChannels();
 
-    for (auto i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
-        buffer.clear (i, 0, numSamples);
+    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
+        buffer.clear (i, 0, buffer.getNumSamples());
 
-    if (apvts.getRawParameterValue ("bypass")->load() > 0.5f)
-    {
-        inputPeak.store (buffer.getMagnitude (0, 0, numSamples));
-        outputPeak.store (inputPeak.load());
-        return;
-    }
+    // Update filters
+    float hpfFreq = apvts.getRawParameterValue("hpf")->load();
+    *highPass.state.coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighPass (sampleRate, hpfFreq);
 
-    updateFilters();
-
-    // Simple waveform (mono)
-    {
-        auto* data = buffer.getReadPointer (0);
-        auto* wave = waveformBuffer.getWritePointer (0);
-        const int waveSize = waveformBuffer.getNumSamples();
-        for (int i = 0; i < numSamples; ++i)
-            wave[i % waveSize] = data[i];
-    }
-
-    inputPeak.store (buffer.getMagnitude (0, 0, numSamples));
+    float airGain = apvts.getRawParameterValue("air")->load();
+    *airFilter.state.coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighShelf (
+        sampleRate, 10500.0, 0.7f, juce::Decibels::decibelsToGain(airGain));
 
     juce::dsp::AudioBlock<float> block (buffer);
-    juce::dsp::ProcessContextReplacing<float> context (block);
+    juce::dsp::ProcessContextReplacing<float> ctx (block);
 
-    // High-Pass
-    highPass.process (context);
+    // 1. High Pass
+    highPass.process (ctx);
 
-    // Simple De-Esser
+    // 2. Simple De-esser (gain reduction on high content)
+    float deess = apvts.getRawParameterValue("deess")->load();
+    if (deess > 0.01f)
     {
-        const float amount = apvts.getRawParameterValue ("deesser")->load();
-        float peak = buffer.getMagnitude (0, 0, numSamples);
-
-        deEsserEnv = (peak > 0.2f) ? deEsserEnv + (peak - deEsserEnv) * 0.03f
-                                  : deEsserEnv * 0.92f;
-
-        const float gain = juce::jlimit (0.4f, 1.0f, 1.0f - deEsserEnv * amount * 0.6f);
-        buffer.applyGain (gain);
+        float peak = buffer.getMagnitude(0, 0, buffer.getNumSamples());
+        float reduction = 1.0f - (peak * deess * 0.5f);
+        buffer.applyGain (juce::jlimit(0.5f, 1.0f, reduction));
     }
 
-    // Compressor + auto makeup
-    {
-        const float amount = apvts.getRawParameterValue ("comp")->load();
-        compressor.setThreshold (juce::jmap (amount, 0.0f, 1.0f, -8.0f, -26.0f));
-        compressor.setRatio (juce::jmap (amount, 0.0f, 1.0f, 1.8f, 5.5f));
-        compressor.setAttack (10.0f);
-        compressor.setRelease (100.0f);
-        compressor.process (context);
+    // 3. Compressor
+    float compAmt = apvts.getRawParameterValue("comp")->load();
+    compressor.setThreshold (juce::jmap(compAmt, 0.f, 1.f, -6.f, -24.f));
+    compressor.setRatio (juce::jmap(compAmt, 0.f, 1.f, 1.5f, 6.f));
+    compressor.setAttack (8.0f);
+    compressor.setRelease (120.0f);
+    compressor.process (ctx);
 
-        makeupGain.setGainDecibels (juce::jmap (amount, 0.0f, 1.0f, 0.0f, 7.0f));
-        makeupGain.process (context);
+    makeup.setGainDecibels (juce::jmap(compAmt, 0.f, 1.f, 0.f, 8.f));
+    makeup.process (ctx);
+
+    // 4. Warmth
+    float warmth = apvts.getRawParameterValue("warmth")->load();
+    if (warmth > 0.01f)
+    {
+        buffer.applyGain (1.0f + warmth * 1.6f);
+        saturator.process (ctx);
+        buffer.applyGain (1.0f / (1.0f + warmth * 0.85f));
     }
 
-    // Warmth / Saturation
-    {
-        const float amount = apvts.getRawParameterValue ("warmth")->load();
-        if (amount > 0.01f)
-        {
-            buffer.applyGain (1.0f + amount * 1.5f);
-            saturator.process (context);
-            buffer.applyGain (1.0f / (1.0f + amount * 0.8f));
-        }
-    }
+    // 5. Air
+    airFilter.process (ctx);
 
-    // Air
-    airShelf.process (context);
-
-    // Output
-    const float outDb = apvts.getRawParameterValue ("output")->load();
-    buffer.applyGain (juce::Decibels::decibelsToGain (outDb));
-
-    outputPeak.store (buffer.getMagnitude (0, 0, numSamples));
+    // 6. Output
+    float outGain = juce::Decibels::decibelsToGain (apvts.getRawParameterValue("out")->load());
+    buffer.applyGain (outGain);
 }
 
 void VocalEnhanceProAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    if (auto xml = apvts.copyState().createXml())
-        copyXmlToBinary (*xml, destData);
+    auto state = apvts.copyState();
+    std::unique_ptr<juce::XmlElement> xml (state.createXml());
+    copyXmlToBinary (*xml, destData);
 }
 
 void VocalEnhanceProAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    if (auto xml = getXmlFromBinary (data, sizeInBytes))
-        if (xml->hasTagName (apvts.state.getType()))
-            apvts.replaceState (juce::ValueTree::fromXml (*xml));
+    std::unique_ptr<juce::XmlElement> xmlState (getXmlFromBinary (data, sizeInBytes));
+    if (xmlState.get() != nullptr)
+        if (xmlState->hasTagName (apvts.state.getType()))
+            apvts.replaceState (juce::ValueTree::fromXml (*xmlState));
 }
 
 juce::AudioProcessorEditor* VocalEnhanceProAudioProcessor::createEditor()

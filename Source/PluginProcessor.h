@@ -1,5 +1,4 @@
 #pragma once
-
 #include <JuceHeader.h>
 
 class VocalEnhanceProAudioProcessor : public juce::AudioProcessor
@@ -31,26 +30,18 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-    juce::AudioProcessorValueTreeState& getAPVTS() noexcept { return apvts; }
-
-    juce::AudioBuffer<float> waveformBuffer;
-    std::atomic<float> inputPeak { 0.0f };
-    std::atomic<float> outputPeak { 0.0f };
+    juce::AudioProcessorValueTreeState apvts;
 
 private:
-    juce::AudioProcessorValueTreeState apvts;
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
     juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> highPass;
     juce::dsp::Compressor<float> compressor;
-    juce::dsp::Gain<float> makeupGain;
+    juce::dsp::Gain<float> makeup;
     juce::dsp::WaveShaper<float> saturator;
-    juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> airShelf;
+    juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> airFilter;
 
-    float deEsserEnv = 0.0f;
-    double currentSampleRate = 44100.0;
-
-    void updateFilters();
+    double sampleRate = 44100.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VocalEnhanceProAudioProcessor)
 };
