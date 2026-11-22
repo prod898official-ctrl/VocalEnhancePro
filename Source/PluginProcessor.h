@@ -33,7 +33,6 @@ public:
 
     juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
 
-    // Public for waveform
     juce::AudioBuffer<float> waveformBuffer;
     std::atomic<float> inputPeak { 0.0f };
     std::atomic<float> outputPeak { 0.0f };
@@ -42,14 +41,12 @@ private:
     juce::AudioProcessorValueTreeState apvts;
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
-    // DSP
     juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> highPass;
     juce::dsp::Compressor<float> compressor;
     juce::dsp::Gain<float> makeupGain;
     juce::dsp::WaveShaper<float> saturator;
     juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> airShelf;
 
-    // De-esser (simple dynamic high-shelf)
     juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> deEsserFilter;
     float deEsserGain = 1.0f;
     float deEsserEnv = 0.0f;
