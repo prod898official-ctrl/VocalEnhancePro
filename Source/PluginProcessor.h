@@ -31,7 +31,7 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-    juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
+    juce::AudioProcessorValueTreeState& getAPVTS() noexcept { return apvts; }
 
     juce::AudioBuffer<float> waveformBuffer;
     std::atomic<float> inputPeak { 0.0f };
@@ -47,14 +47,10 @@ private:
     juce::dsp::WaveShaper<float> saturator;
     juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> airShelf;
 
-    juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> deEsserFilter;
-    float deEsserGain = 1.0f;
     float deEsserEnv = 0.0f;
-
     double currentSampleRate = 44100.0;
-    int currentBlockSize = 512;
 
-    void updateDSP();
+    void updateFilters();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VocalEnhanceProAudioProcessor)
 };

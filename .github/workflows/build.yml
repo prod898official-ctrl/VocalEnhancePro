@@ -1,4 +1,4 @@
-name: Build VocalEnhance Pro VST3
+name: Build VST3
 
 on:
   push:
@@ -6,34 +6,38 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-windows:
+  windows:
     runs-on: windows-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Configure CMake
-        run: |
-          cmake -B build -G "Visual Studio 17 2022" -A x64
+      - name: Configure
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64
 
       - name: Build
-        run: |
-          cmake --build build --config Release --parallel 2 --verbose
+        run: cmake --build build --config Release --parallel
 
-      - name: Find VST3
-        run: |
-          Get-ChildItem -Path build -Recurse -Filter "*.vst3" | ForEach-Object { $_.FullName }
-          Get-ChildItem -Path build -Recurse -Directory | Where-Object { $_.Name -like "*VST3*" } | ForEach-Object { $_.FullName }
-
-      - name: Upload VST3 Artifact
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: VocalEnhancePro-VST3-Windows
-          path: |
-            build/**/*.vst3
-            build/**/VST3/**
+          name: VocalEnhancePro-Windows
+          path: build/**/VST3/**
           if-no-files-found: warn
-          retention-days: 5
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: VocalEnhancePro-macOS
+          path: build/**/VST3/**
+          if-no-files-found: warn

@@ -9,7 +9,7 @@ include(FetchContent)
 FetchContent_Declare(
     JUCE
     GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
-    GIT_TAG        8.0.4
+    GIT_TAG        8.0.6
 )
 FetchContent_MakeAvailable(JUCE)
 
@@ -23,10 +23,10 @@ juce_add_plugin(VocalEnhancePro
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     COPY_PLUGIN_AFTER_BUILD TRUE
     PLUGIN_MANUFACTURER_CODE Venh
-    PLUGIN_CODE Venh
+    PLUGIN_CODE Vepr
     FORMATS VST3
-    PRODUCT_NAME "VocalEnhance Pro"
-    VST3_CATEGORIES "Fx" "Dynamics" "EQ"
+    PRODUCT_NAME "VocalEnhancePro"
+    VST3_CATEGORIES "Fx"
 )
 
 target_sources(VocalEnhancePro

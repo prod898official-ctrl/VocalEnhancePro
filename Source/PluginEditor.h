@@ -20,27 +20,26 @@ public:
                            float sliderPos, float rotaryStartAngle, float rotaryEndAngle,
                            juce::Slider& slider) override
     {
-        auto bounds = juce::Rectangle<int> (x, y, width, height).toFloat().reduced (6.0f);
-        auto radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) / 2.0f;
+        auto bounds = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height).reduced (8.0f);
+        auto radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
         auto centre = bounds.getCentre();
         auto angle = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
 
-        juce::Path backgroundArc;
-        backgroundArc.addCentredArc (centre.x, centre.y, radius, radius, 0.0f, rotaryStartAngle, rotaryEndAngle, true);
+        juce::Path bg;
+        bg.addCentredArc (centre.x, centre.y, radius, radius, 0.0f, rotaryStartAngle, rotaryEndAngle, true);
         g.setColour (juce::Colour (0xff1e1b4b));
-        g.strokePath (backgroundArc, juce::PathStrokeType (4.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        g.strokePath (bg, juce::PathStrokeType (4.0f));
 
         if (slider.isEnabled())
         {
-            juce::Path valueArc;
-            valueArc.addCentredArc (centre.x, centre.y, radius, radius, 0.0f, rotaryStartAngle, angle, true);
-            juce::ColourGradient grad (juce::Colour (0xffa78bfa), centre.x - radius, centre.y, juce::Colour (0xff7c3aed), centre.x + radius, centre.y, false);
-            g.setGradientFill (grad);
-            g.strokePath (valueArc, juce::PathStrokeType (4.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            juce::Path value;
+            value.addCentredArc (centre.x, centre.y, radius, radius, 0.0f, rotaryStartAngle, angle, true);
+            g.setColour (juce::Colour (0xffa78bfa));
+            g.strokePath (value, juce::PathStrokeType (4.0f));
         }
 
         juce::Path thumb;
-        thumb.addRectangle (-1.75f, -radius + 2.0f, 3.5f, radius * 0.35f);
+        thumb.addRectangle (-2.0f, -radius + 1.0f, 4.0f, radius * 0.32f);
         g.setColour (juce::Colour (0xffe9d5ff));
         g.fillPath (thumb, juce::AffineTransform::rotation (angle).translated (centre));
     }
@@ -49,35 +48,42 @@ public:
 class WaveformComponent : public juce::Component, private juce::Timer
 {
 public:
-    WaveformComponent (VocalEnhanceProAudioProcessor& p) : processor (p) { startTimerHz (30); }
+    explicit WaveformComponent (VocalEnhanceProAudioProcessor& p) : processor (p)
+    {
+        startTimerHz (30);
+    }
 
     void paint (juce::Graphics& g) override
     {
-        auto bounds = getLocalBounds().toFloat().reduced (2.0f);
+        auto r = getLocalBounds().toFloat().reduced (2.0f);
+
         g.setColour (juce::Colour (0xff0f0a1e));
-        g.fillRoundedRectangle (bounds, 8.0f);
-        g.setColour (juce::Colour (0xff4c1d95).withAlpha (0.6f));
-        g.drawRoundedRectangle (bounds, 8.0f, 1.5f);
+        g.fillRoundedRectangle (r, 6.0f);
 
-        const auto& buffer = processor.waveformBuffer;
-        if (buffer.getNumSamples() < 2) return;
+        g.setColour (juce::Colour (0xff4c1d95).withAlpha (0.5f));
+        g.drawRoundedRectangle (r, 6.0f, 1.2f);
 
-        juce::Path path;
-        const float midY = bounds.getCentreY();
-        const float height = bounds.getHeight() * 0.4f;
-        const float width = bounds.getWidth() - 8.0f;
-        const float startX = bounds.getX() + 4.0f;
+        const auto& buf = processor.waveformBuffer;
+        if (buf.getNumSamples() < 4)
+            return;
 
-        path.startNewSubPath (startX, midY);
-        for (int i = 0; i < buffer.getNumSamples(); i += 4)
+        juce::Path p;
+        const float mid = r.getCentreY();
+        const float h = r.getHeight() * 0.38f;
+        const float w = r.getWidth() - 6.0f;
+        const float x0 = r.getX() + 3.0f;
+
+        p.startNewSubPath (x0, mid);
+
+        for (int i = 0; i < buf.getNumSamples(); i += 2)
         {
-            float x = startX + (float(i) / buffer.getNumSamples()) * width;
-            float y = midY - buffer.getSample (0, i) * height;
-            path.lineTo (x, y);
+            float x = x0 + (float) i / (float) buf.getNumSamples() * w;
+            float y = mid - buf.getSample (0, i) * h;
+            p.lineTo (x, y);
         }
 
-        g.setColour (juce::Colour (0xffc084fc).withAlpha (0.85f));
-        g.strokePath (path, juce::PathStrokeType (1.6f));
+        g.setColour (juce::Colour (0xffc084fc).withAlpha (0.9f));
+        g.strokePath (p, juce::PathStrokeType (1.5f));
     }
 
     void timerCallback() override { repaint(); }
@@ -89,29 +95,29 @@ private:
 class VocalEnhanceProAudioProcessorEditor : public juce::AudioProcessorEditor
 {
 public:
-    VocalEnhanceProAudioProcessorEditor (VocalEnhanceProAudioProcessor&);
+    explicit VocalEnhanceProAudioProcessorEditor (VocalEnhanceProAudioProcessor&);
     ~VocalEnhanceProAudioProcessorEditor() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
 
 private:
-    VocalEnhanceProAudioProcessor& audioProcessor;
-    ModernLookAndFeel modernLnF;
+    VocalEnhanceProAudioProcessor& processor;
+    ModernLookAndFeel lnf;
 
-    juce::Slider hpfSlider, deesserSlider, compSlider, warmthSlider, airSlider, outputSlider;
-    juce::Label hpfLabel, deesserLabel, compLabel, warmthLabel, airLabel, outputLabel;
+    juce::Slider hpf, deesser, comp, warmth, air, output;
+    juce::Label  hpfL, deesserL, compL, warmthL, airL, outputL;
 
-    using Attachment = juce::AudioProcessorValueTreeState::SliderAttachment;
-    std::unique_ptr<Attachment> hpfAtt, deesserAtt, compAtt, warmthAtt, airAtt, outputAtt;
+    using Att = juce::AudioProcessorValueTreeState::SliderAttachment;
+    std::unique_ptr<Att> hpfA, deesserA, compA, warmthA, airA, outputA;
 
-    juce::ToggleButton bypassButton;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAtt;
+    juce::ToggleButton bypass;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassA;
 
-    WaveformComponent waveform;
-    juce::Label titleLabel;
+    WaveformComponent wave;
+    juce::Label title;
 
-    void setupSlider (juce::Slider& s, juce::Label& l, const juce::String& name);
+    void setupKnob (juce::Slider& s, juce::Label& l, const juce::String& name);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VocalEnhanceProAudioProcessorEditor)
 };
