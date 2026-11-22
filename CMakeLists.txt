@@ -27,6 +27,9 @@ juce_add_plugin(VocalEnhancePro
     VST3_CATEGORIES Fx
 )
 
+# To jest kluczowa linia, której brakowało
+juce_generate_juce_header(VocalEnhancePro)
+
 target_sources(VocalEnhancePro PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
